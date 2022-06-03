@@ -1,0 +1,179 @@
+
+Hi Mark,
+
+Thanks again for meeting up with us. As discussed this afternoon, we're sending over a devops coding challenge. Here are the instructions:
+
+Create an Ansible playbook (you can structure the roles/playbook/vars the way you believe is best) that will install:
+
+- Debian Security Packages (to harden the server)
+- Docker
+- That will trigger a build for a docker image for Wordpress (with a sample site context)  
+
+Deadline is in 3 days upon acknowledgement of receipt. Submissions given after the deadline will no longer be considered.
+
+NOTE: Please send the git repository for your finished challenge. Your own public repo will do.
+
+Best,
+
+Andrea Coloso
+EA to the CTO
+
+===============================================================================
+HowTo Install in the Managed Ansible Machine
+===============================================================================
+
+Update and upgrade the Debian
+# apt update -y; apt upgrade -y
+
+Install Ansible in the Debian Linux
+# apt install ansible
+
+Install Docker
+# apt-get install apt-transport-https ca-certificates curl gnupg lsb-release -y && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && apt update -y && apt-get install docker-ce docker-ce-cli containerd.io -y && apt update -y && apt upgrade -y &&  curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose 
+
+Install Python
+# apt install python3 -y
+
+Install Python Dcoker for Ansible
+# apt install python3-pip
+
+Alternative Installation via curl download Pip3 download
+# curl "https://bootstrap.pypa.io/get-pip.py" -o "install-pip3-ubuntu.py"
+# python3 install-pip3-ubuntu.py
+
+Install Pip Docker module
+# pip3 install docker
+
+ssh-keygen -t rsa -C "debian@192.168.2.17"
+ssh-copy-id debian@192.168.2.17
+ssh debian@192.168.2.17
+
+Install Ansible via Python3
+# apt install -y python3 python3-pip sudo
+# python3 -m pip install ansible
+
+Install Docker extension for Ansible
+# ansible-galaxy collection install community.docker
+
+======================================================================================
+technicaltest.yml
+
+---
+
+- hosts: ubuntu
+  become: true
+  roles:
+      - apt_install
+      - docker_install
+      - wordpres_containerize
+
+
+======================================================================================
+apt_install
+
+---
+# tasks file for apt_install
+- name: Install aptitude
+  apt:
+     name: aptitude
+     state: present
+     update_cache: true
+- name: Install required system packages
+  apt:
+    pkg:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+      - python3-pip
+      - virtualenv
+      - python3-setuptools
+    state: present
+    update_cache: true
+- name: Update and upgrade
+  apt:
+     upgrade: true
+     update_cache: true
+
+==================================================================================================
+docker_install
+
+---
+# tasks file for docker_install
+- name: Install dockers pre-requisites
+  apt:
+      pkg:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - gnupg
+        - lsb-release
+      state: present
+      force_apt_get: true
+      update-cache: true
+- name: Add Docker GPG apt Key
+  apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+
+- name: Add Docker Repository
+  apt_repository:
+      repo: deb https://download.docker.com/linux/ubuntu focal stable
+      state: present
+
+- name: Update apt and install docker-ce
+  apt:
+      name: docker-ce
+      state: latest
+      update_cache: true
+
+- name: Install Docker Module for Python
+  pip:
+      name:
+        - docker
+        - docker-compose
+
+- name: Chmod 777 /var/run/docker.sock
+  raw: chmod 777 /var/run/docker.sock
+
+======================================================================================
+wordpress_container.yaml
+
+---
+- name: Create Network
+  docker_network:
+     name: network
+
+- name: Deploy Wordpress
+  docker_container:
+    name: wordpress
+    image: wordpress:latest
+    ports:
+      - "80:80"
+    networks:
+      - name: wordpress
+    volumes:
+          - wordpress:/var/www/html
+    env:
+      WORDPRESS_DB: "db"
+      WORDPRESS_DB_USER: "wordpress"
+      WORDPRESS_DB_PASSWORD: "wordpass"
+      WORDPRESS_DB_NAME: "worddb"
+    restart_policy: always
+
+- name: Deploy MySQL
+  docker_container:
+    name: db
+    image: mysql:5.7
+    networks:
+      - name: wordpress
+    volumes:
+      - db:/var/lib/mysql
+    env:
+      MYSQL_DATABASE: "mysqldb"
+      MYSQL_USER: "mysql"
+      MYSQL_PASSWORD: "mysqlpass"
+      MYSQL_RANDOM_PASSWORD: "1"
+    restart_policy: always
+
+
